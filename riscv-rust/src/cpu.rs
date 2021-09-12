@@ -4,6 +4,7 @@ use self::fnv::FnvHashMap;
 
 use mmu::{AddressingMode, Mmu};
 use terminal::Terminal;
+use shadowstack::ShadowStack;
 
 const CSR_CAPACITY: usize = 4096;
 
@@ -73,7 +74,8 @@ pub struct Cpu {
 	is_reservation_set: bool,
 	_dump_flag: bool,
 	decode_cache: DecodeCache,
-	unsigned_data_mask: u64
+	unsigned_data_mask: u64,
+	shadowstack: ShadowStack
 }
 
 #[derive(Clone)]
@@ -223,7 +225,8 @@ impl Cpu {
 			is_reservation_set: false,
 			_dump_flag: false,
 			decode_cache: DecodeCache::new(),
-			unsigned_data_mask: 0xffffffffffffffff
+			unsigned_data_mask: 0xffffffffffffffff,
+			shadowstack: ShadowStack::new()
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
 		cpu.write_csr_raw(CSR_MISA_ADDRESS, 0x800000008014312f);
