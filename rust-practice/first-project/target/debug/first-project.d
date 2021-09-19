@@ -1,0 +1,1 @@
+/home/kali/Documents/RISCV/rust-practice/first-project/target/debug/first-project: /home/kali/Documents/RISCV/rust-practice/first-project/src/foo/bar.rs /home/kali/Documents/RISCV/rust-practice/first-project/src/foo.rs /home/kali/Documents/RISCV/rust-practice/first-project/src/hoge.rs /home/kali/Documents/RISCV/rust-practice/first-project/src/main.rs
