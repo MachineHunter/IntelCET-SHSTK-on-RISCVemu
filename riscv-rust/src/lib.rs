@@ -11,6 +11,7 @@ pub mod terminal;
 pub mod default_terminal;
 pub mod memory;
 pub mod mmu;
+pub mod shadowstack;
 pub mod elf_analyzer;
 pub mod device;
 

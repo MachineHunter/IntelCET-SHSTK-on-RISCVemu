@@ -229,6 +229,7 @@ impl Cpu {
 			shadowstack: ShadowStack::new()
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
+		wasm_logger::init(wasm_logger::Config::default());
 		cpu.write_csr_raw(CSR_MISA_ADDRESS, 0x800000008014312f);
 		cpu
 	}
@@ -2585,11 +2586,14 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 			let f = parse_format_i(word);
 			let tmp = cpu.sign_extend(cpu.pc as i64);
 
+			// if this jalr is used as 'call'
+			if f.rd != 0 {
+				cpu.shadowstack.push(cpu.pc);
+			}
+
 			// if this jalr is used as 'ret'
-			// TODO: is rd always x0 if jalr is used as 'ret'?
-			if f.rd==0 && f.imm==0 {
+			if f.rd == 0 && f.imm == 0 {
 				if cpu.shadowstack.pop() != (cpu.x[f.rs1] as u64) {
-					wasm_logger::init(wasm_logger::Config::default());
 					log::info!("DETECTED BOF BY SHADOW STACK !!!!!");
 				}
 			}

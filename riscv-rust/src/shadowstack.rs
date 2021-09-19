@@ -9,15 +9,12 @@ impl ShadowStack {
 		}
 	}
 
-	pub fn push(&mut self, value: u64) -> Result<bool, String> {
-		data.push(value);
-		return Ok(true);
+	pub fn push(&mut self, value: u64) -> bool {
+		self.data.push(value);
+		return true;
 	}
 
-	pub fn pop(&mut self) -> Result<u64, String> {
-		if data.is_empty() {
-			return Err(String::from("ShadowStack underflow"));
-		}
-		return Ok(data.pop().unwrap());
+	pub fn pop(&mut self) -> u64 {
+		return self.data.pop().unwrap();
 	}
 }
