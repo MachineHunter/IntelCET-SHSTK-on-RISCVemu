@@ -75,7 +75,8 @@ pub struct Cpu {
 	_dump_flag: bool,
 	decode_cache: DecodeCache,
 	unsigned_data_mask: u64,
-	shadowstack: ShadowStack
+	shadowstack: ShadowStack,
+	logcount: u64
 }
 
 #[derive(Clone)]
@@ -226,7 +227,8 @@ impl Cpu {
 			_dump_flag: false,
 			decode_cache: DecodeCache::new(),
 			unsigned_data_mask: 0xffffffffffffffff,
-			shadowstack: ShadowStack::new()
+			shadowstack: ShadowStack::new(),
+			logcount: 0
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
 		wasm_logger::init(wasm_logger::Config::default());
@@ -2572,7 +2574,13 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 		operation: |cpu, word, address| {
 			let f = parse_format_j(word);
 			cpu.x[f.rd] = cpu.sign_extend(cpu.pc as i64);
-			cpu.shadowstack.push(cpu.pc);
+			// when f.rd = 0 , jal will be same as jmp
+			if f.rd == 1 {
+				cpu.shadowstack.push(cpu.pc);
+				if cpu.logcount < 20 {
+					log::info!("[jal] pushed {:x} jumping to {:x}", cpu.pc, address.wrapping_add(f.imm));
+				}
+			}
 			cpu.pc = address.wrapping_add(f.imm);
 			Ok(())
 		},
@@ -2587,15 +2595,22 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 			let tmp = cpu.sign_extend(cpu.pc as i64);
 
 			// if this jalr is used as 'call'
-			if f.rd != 0 {
+			if f.rd == 1 {
 				cpu.shadowstack.push(cpu.pc);
+				if cpu.logcount < 20 {
+					log::info!("[jalr] pushed {:x} jumping to {:x}", cpu.pc, (cpu.x[f.rs1] as u64).wrapping_add(f.imm as u64));
+				}
 			}
 
 			// if this jalr is used as 'ret'
-			if f.rd == 0 && f.imm == 0 {
-				if cpu.shadowstack.pop() != (cpu.x[f.rs1] as u64) {
-					log::info!("DETECTED BOF BY SHADOW STACK !!!!!");
-				}
+			if f.rd == 0 && f.imm == 0 && f.rs1 == 1 {
+				let popval = cpu.shadowstack.pop();
+				//if popval != (cpu.x[f.rs1] as u64) {
+					if cpu.logcount < 20 {
+						log::info!("{:x} {:x} {:x}", cpu.pc, popval, (cpu.x[f.rs1] as u64));
+						cpu.logcount += 1;
+					}
+				//}
 			}
 
 			cpu.pc = (cpu.x[f.rs1] as u64).wrapping_add(f.imm as u64);
