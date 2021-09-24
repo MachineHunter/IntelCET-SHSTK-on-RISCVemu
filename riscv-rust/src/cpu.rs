@@ -231,7 +231,7 @@ impl Cpu {
 			logcount: 0
 		};
 		cpu.x[0xb] = 0x1020; // I don't know why but Linux boot seems to require this initialization
-		wasm_logger::init(wasm_logger::Config::default());
+		// wasm_logger::init(wasm_logger::Config::default());
 		cpu.write_csr_raw(CSR_MISA_ADDRESS, 0x800000008014312f);
 		cpu
 	}
@@ -305,6 +305,7 @@ impl Cpu {
 				self.uncompress(original_word & 0xffff)
 			}
 		};
+		// println!("word:{:X}, original_word:{:X}", word, original_word);
 
 		match self.decode(word) {
 			Ok(inst) => {
@@ -2578,7 +2579,7 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 			if f.rd == 1 {
 				cpu.shadowstack.push(cpu.pc);
 				if cpu.logcount < 20 {
-					log::info!("[jal] pushed {:x} jumping to {:x}", cpu.pc, address.wrapping_add(f.imm));
+					// log::info!("[jal] pushed {:x} jumping to {:x}", cpu.pc, address.wrapping_add(f.imm));
 				}
 			}
 			cpu.pc = address.wrapping_add(f.imm);
@@ -2598,19 +2599,21 @@ const INSTRUCTIONS: [Instruction; INSTRUCTION_NUM] = [
 			if f.rd == 1 {
 				cpu.shadowstack.push(cpu.pc);
 				if cpu.logcount < 20 {
-					log::info!("[jalr] pushed {:x} jumping to {:x}", cpu.pc, (cpu.x[f.rs1] as u64).wrapping_add(f.imm as u64));
+					// log::info!("[jalr] pushed {:x} jumping to {:x}", cpu.pc, (cpu.x[f.rs1] as u64).wrapping_add(f.imm as u64));
 				}
 			}
 
 			// if this jalr is used as 'ret'
 			if f.rd == 0 && f.imm == 0 && f.rs1 == 1 {
 				let popval = cpu.shadowstack.pop();
-				//if popval != (cpu.x[f.rs1] as u64) {
-					if cpu.logcount < 20 {
-						log::info!("{:x} {:x} {:x}", cpu.pc, popval, (cpu.x[f.rs1] as u64));
-						cpu.logcount += 1;
-					}
-				//}
+				if cpu.logcount < 20 {
+					// log::info!("{:x} {:x} {:x}", cpu.pc, popval, (cpu.x[f.rs1] as u64));
+					cpu.logcount += 1;
+				}
+				println!("pop[jalr] : shstk=0x{:X} ra=0x{:X}", popval, (cpu.x[f.rs1] as u64));
+				if popval != (cpu.x[f.rs1] as u64) {
+					panic!("BOF DETECTED BY SHADOW STACK!!!! shstk=0x{:X} but ra=0x{:X}", popval, (cpu.x[f.rs1] as u64));
+				}
 			}
 
 			cpu.pc = (cpu.x[f.rs1] as u64).wrapping_add(f.imm as u64);
@@ -3547,6 +3550,225 @@ impl DecodeCacheEntry {
 			instruction_index: INVALID_CACHE_ENTRY,
 			next_index: next_index,
 			prev_index: prev_index
+		}
+	}
+}
+
+#[cfg(test)]
+mod test_shadow_stack {
+	use terminal::DummyTerminal;
+	use mmu::DRAM_BASE;
+	use super::*;
+
+	#[test]
+	fn shstk() {
+		let mut cpu = Cpu::new(Box::new(DummyTerminal::new()));
+		cpu.get_mut_mmu().init_memory(2032);
+		for i in 0..31 {
+			cpu.x[i] = i as i64;
+		}
+		cpu.x[2] = (DRAM_BASE + 1000) as i64;
+		cpu.update_pc(DRAM_BASE+84);
+
+
+		// void b(void) {
+		//		return;
+		//	}
+		//
+		//	void a(void) {
+		//		char buf[5];
+		//		int i;
+		//		b();
+		//		for(i=0; i<100; i++) {
+		//			buf[i] = 'a';
+		//		}
+		//		return;
+		//	}
+		//
+		// int main(void) {
+		// 	a();
+		// 	return 0;
+		// }
+
+		// func b
+		match cpu.get_mut_mmu().store_word(DRAM_BASE, 0x1141) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+2, 0xe422) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+4, 0x0800) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+6, 0x0001) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+8, 0x6422) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+10, 0x0141) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+12, 0x8082) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+
+		// func a
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+14, 0x1101) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+16, 0xec06) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+18, 0xe822) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+20, 0x1000) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+22, 0xfebff0ef) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+26, 0xfe042623) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+30, 0xa831) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+32, 0xfec42783) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+36, 0x17c1) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+38, 0x97a2) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+40, 0x06100713) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+44, 0xfee78823) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+48, 0xfec42783) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+52, 0x2785) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+54, 0xfef42623) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+58, 0xfec42783) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+62, 0x0007871b) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+66, 0x06300793) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+70, 0xfce7dde3) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+74, 0x0001) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+76, 0x60e2) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+78, 0x6442) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+80, 0x6105) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+82, 0x8082) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+
+		// func main
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+84, 0x1141) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+86, 0xe406) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+88, 0xe022) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+90, 0x0800) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+92, 0xfb3ff0ef) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+96, 0x4781) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+98, 0x853e) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+100, 0x60a2) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+102, 0x6402) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+104, 0x0141) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+		match cpu.get_mut_mmu().store_word(DRAM_BASE+106, 0x8082) {
+			Ok(()) => {},
+			Err(_e) => panic!("Failed to store")
+		};
+
+		println!("-------------------- BOF Simulation Start !!! ----------------------");
+
+		for i in 0..1000 {
+			println!("[{}] pc:{:X}, ra:{:X}, sp:{:X}", i+1, cpu.pc, cpu.x[1], cpu.x[2]);
+			cpu.tick();
 		}
 	}
 }
