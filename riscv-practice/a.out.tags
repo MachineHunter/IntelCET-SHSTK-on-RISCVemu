@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<wxHexEditor_XML_TAG>
+  <filename path="a.out">
+    <TAG id="0">
+      <start_offset>1104</start_offset>
+      <end_offset>1104</end_offset>
+      <tag_text></tag_text>
+      <font_colour>#FFFFFF</font_colour>
+      <note_colour>#2D6EE4</note_colour>
+    </TAG>
+    <TAG id="1">
+      <start_offset>1650</start_offset>
+      <end_offset>1651</end_offset>
+      <tag_text></tag_text>
+      <font_colour>#FFFFFF</font_colour>
+      <note_colour>#49B9FF</note_colour>
+    </TAG>
+  </filename>
+</wxHexEditor_XML_TAG>
